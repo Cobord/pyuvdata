@@ -2,9 +2,11 @@
 # Licensed under the 2-clause BSD License
 """Utilities for coordinate transforms."""
 
+from typing import Optional, Tuple, Union
 import warnings
 
 import numpy as np
+import numpy.typing as npt
 from astropy.coordinates import EarthLocation
 
 from . import _coordinates
@@ -41,8 +43,9 @@ _range_dict = {
     "mcmf": (1717100.0, 1757100.0, "Moon"),
 }
 
+OneOrMoreFloats = Union[npt.NDArray[np.floating],float]
 
-def LatLonAlt_from_XYZ(xyz, *, frame="ITRS", ellipsoid=None, check_acceptability=True):
+def LatLonAlt_from_XYZ(xyz : npt.NDArray[np.floating], *, frame="ITRS", ellipsoid : Optional[str] = None, check_acceptability=True) -> Tuple[OneOrMoreFloats,OneOrMoreFloats,OneOrMoreFloats]:
     """
     Calculate lat/lon/alt from ECEF x,y,z.
 
@@ -119,7 +122,7 @@ def LatLonAlt_from_XYZ(xyz, *, frame="ITRS", ellipsoid=None, check_acceptability
     return lla[0], lla[1], lla[2]
 
 
-def XYZ_from_LatLonAlt(latitude, longitude, altitude, *, frame="ITRS", ellipsoid=None):
+def XYZ_from_LatLonAlt(latitude : OneOrMoreFloats, longitude : OneOrMoreFloats, altitude : OneOrMoreFloats, *, frame="ITRS", ellipsoid : Optional[str]=None):
     """
     Calculate ECEF x,y,z from lat/lon/alt values.
 
@@ -188,7 +191,7 @@ def XYZ_from_LatLonAlt(latitude, longitude, altitude, *, frame="ITRS", ellipsoid
     return xyz
 
 
-def rotECEF_from_ECEF(xyz, longitude):
+def rotECEF_from_ECEF(xyz : npt.NDArray[np.floating], longitude: float) -> npt.NDArray[np.floating]:
     """
     Get rotated ECEF positions such that the x-axis goes through the longitude.
 
@@ -220,7 +223,7 @@ def rotECEF_from_ECEF(xyz, longitude):
     return rot_matrix.dot(xyz.T).T
 
 
-def ECEF_from_rotECEF(xyz, longitude):
+def ECEF_from_rotECEF(xyz: npt.NDArray[np.floating], longitude: float):
     """
     Calculate ECEF from a rotated ECEF (Inverse of rotECEF_from_ECEF).
 
