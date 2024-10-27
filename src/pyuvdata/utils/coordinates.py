@@ -1,18 +1,18 @@
 # Copyright (c) 2024 Radio Astronomy Software Group
 # Licensed under the 2-clause BSD License
 """Utilities for coordinate transforms."""
-
+#pylint:disable=import-error
 from typing import Optional, Tuple, Union
 import warnings
 
 import numpy as np
 import numpy.typing as npt
-from astropy.coordinates import EarthLocation
+from astropy.coordinates import EarthLocation # type: ignore
 
 from . import _coordinates
 
 try:
-    from lunarsky import MoonLocation
+    from lunarsky import MoonLocation # type: ignore
 
     hasmoon = True
 except ImportError:
@@ -45,7 +45,11 @@ _range_dict = {
 
 OneOrMoreFloats = Union[npt.NDArray[np.floating],float]
 
-def LatLonAlt_from_XYZ(xyz : npt.NDArray[np.floating], *, frame="ITRS", ellipsoid : Optional[str] = None, check_acceptability=True) -> Tuple[OneOrMoreFloats,OneOrMoreFloats,OneOrMoreFloats]:
+def LatLonAlt_from_XYZ(xyz : npt.NDArray[np.floating], *,
+                       frame="ITRS",
+                       ellipsoid : Optional[str] = None,
+                       check_acceptability=True
+                       ) -> Tuple[OneOrMoreFloats,OneOrMoreFloats,OneOrMoreFloats]:
     """
     Calculate lat/lon/alt from ECEF x,y,z.
 
@@ -122,7 +126,12 @@ def LatLonAlt_from_XYZ(xyz : npt.NDArray[np.floating], *, frame="ITRS", ellipsoi
     return lla[0], lla[1], lla[2]
 
 
-def XYZ_from_LatLonAlt(latitude : OneOrMoreFloats, longitude : OneOrMoreFloats, altitude : OneOrMoreFloats, *, frame="ITRS", ellipsoid : Optional[str]=None):
+def XYZ_from_LatLonAlt(latitude : OneOrMoreFloats,
+                       longitude : OneOrMoreFloats,
+                       altitude : OneOrMoreFloats, *,
+                       frame="ITRS",
+                       ellipsoid : Optional[str]=None
+                       ) -> npt.NDArray[np.floating]:
     """
     Calculate ECEF x,y,z from lat/lon/alt values.
 
@@ -191,7 +200,9 @@ def XYZ_from_LatLonAlt(latitude : OneOrMoreFloats, longitude : OneOrMoreFloats, 
     return xyz
 
 
-def rotECEF_from_ECEF(xyz : npt.NDArray[np.floating], longitude: float) -> npt.NDArray[np.floating]:
+def rotECEF_from_ECEF(xyz : npt.NDArray[np.floating],
+                      longitude: float
+                      ) -> npt.NDArray[np.floating]:
     """
     Get rotated ECEF positions such that the x-axis goes through the longitude.
 
@@ -223,7 +234,9 @@ def rotECEF_from_ECEF(xyz : npt.NDArray[np.floating], longitude: float) -> npt.N
     return rot_matrix.dot(xyz.T).T
 
 
-def ECEF_from_rotECEF(xyz: npt.NDArray[np.floating], longitude: float):
+def ECEF_from_rotECEF(xyz: npt.NDArray[np.floating],
+                      longitude: float
+                      ) -> npt.NDArray[np.floating]:
     """
     Calculate ECEF from a rotated ECEF (Inverse of rotECEF_from_ECEF).
 
@@ -261,7 +274,7 @@ def ENU_from_ECEF(
     altitude=None,
     frame="ITRS",
     ellipsoid=None,
-):
+    ) -> npt.NDArray[np.floating]:
     """
     Calculate local ENU (east, north, up) coordinates from ECEF coordinates.
 
@@ -385,7 +398,7 @@ def ECEF_from_ENU(
     altitude=None,
     frame="ITRS",
     ellipsoid=None,
-):
+    ) -> npt.NDArray[np.floating]:
     """
     Calculate ECEF coordinates from local ENU (east, north, up) coordinates.
 
@@ -485,7 +498,9 @@ def ECEF_from_ENU(
     return xyz
 
 
-def hpx_latlon_to_zenithangle_azimuth(hpx_lat, hpx_lon):
+def hpx_latlon_to_zenithangle_azimuth(hpx_lat : OneOrMoreFloats,
+                                      hpx_lon : OneOrMoreFloats
+                                      ) -> Tuple[OneOrMoreFloats, OneOrMoreFloats]:
     """
     Convert from healpix lat/lon to UVBeam za/az convention.
 
@@ -527,7 +542,9 @@ def hpx_latlon_to_zenithangle_azimuth(hpx_lat, hpx_lon):
     return zenith_angle, azimuth
 
 
-def zenithangle_azimuth_to_hpx_latlon(zenith_angle, azimuth):
+def zenithangle_azimuth_to_hpx_latlon(zenith_angle : OneOrMoreFloats,
+                                      azimuth : OneOrMoreFloats
+                                      ) -> Tuple[OneOrMoreFloats,OneOrMoreFloats]:
     """
     Convert from UVBeam az/za convention to healpix lat/lon.
 
@@ -576,7 +593,7 @@ def check_surface_based_positions(
     antenna_positions=None,
     raise_error=True,
     raise_warning=True,
-):
+    ) -> bool:
     """
     Check that antenna positions are consistent with ground-based values.
 

@@ -2,12 +2,16 @@
 # Licensed under the 2-clause BSD License
 """Code to apply flags to calibration or visibility data."""
 
+from typing import Optional
 import numpy as np
-
+from pyuvdata import UVData, UVFlag
 
 def apply_uvflag(
-    uvd, uvf, *, inplace=True, unflag_first=False, flag_missing=True, force_pol=True
-):
+    uvd : UVData,
+    uvf : UVFlag, *,
+    inplace=True, unflag_first=False,
+    flag_missing=True, force_pol=True
+    ) -> Optional[UVData]:
     """
     Apply flags from a UVFlag to a UVData instantiation.
 
