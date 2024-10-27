@@ -18,7 +18,7 @@ def new_uvbeam(
     *,
     telescope_name: str,
     data_normalization: Literal["physical", "peak", "solid_angle"],
-    freq_array: npt.NDArray[np.float],
+    freq_array: npt.NDArray[float],
     feed_name: str = "default",
     feed_version: str = "0.0",
     model_name: str = "default",
@@ -31,20 +31,21 @@ def new_uvbeam(
     pixel_coordinate_system: (
         Literal["az_za", "orthoslant_zenith", "healpix"] | None
     ) = None,
-    axis1_array: npt.NDArray[np.float] | None = None,
-    axis2_array: npt.NDArray[np.float] | None = None,
+    axis1_array: npt.NDArray[float] | None = None,
+    axis2_array: npt.NDArray[float] | None = None,
     nside: int | None = None,
     ordering: Literal["ring", "nested"] | None = None,
-    healpix_pixel_array: npt.NDArray[np.int] | None = None,
-    basis_vector_array: npt.NDArray[np.float] | None = None,
-    bandpass_array: npt.NDArray[np.float] | None = None,
-    element_location_array: npt.NDArray[np.float] | None = None,
+    healpix_pixel_array: npt.NDArray[int] | None = None,
+    basis_vector_array: npt.NDArray[float] | None = None,
+    bandpass_array: npt.NDArray[float] | None = None,
+    element_location_array: npt.NDArray[float] | None = None,
     element_coordinate_system: Literal["n-e", "x-y"] | None = None,
-    delay_array: npt.NDArray[np.float] | None = None,
-    gain_array: npt.NDArray[np.float] | None = None,
-    coupling_matrix: npt.NDArray[np.float] | None = None,
-    data_array: npt.NDArray[np.float] | None = None,
+    delay_array: npt.NDArray[float] | None = None,
+    gain_array: npt.NDArray[float] | None = None,
+    coupling_matrix: npt.NDArray[float] | None = None,
+    data_array: npt.NDArray[float] | None = None,
     history: str = "",
+    **kwargs,
 ):
     r"""Create a new UVBeam object with default parameters.
 
@@ -88,10 +89,12 @@ def new_uvbeam(
         "az_za" if not.
     axis1_array : ndarray of float
         Coordinates along first pixel axis (e.g. azimuth for an azimuth/zenith
-        angle coordinate system). Should not provided for healpix coordinates.
+        angle coordinate system). Must be regularly spaced. Should not provided
+        for healpix coordinates.
     axis2_array : ndarray of float
         Coordinates along second pixel axis (e.g. zenith angle for an azimuth/zenith
-        angle coordinate system). Should not provided for healpix coordinates.
+        angle coordinate system). Must be regularly spaced. Should not provided
+        for healpix coordinates.
     nside : int
         Healpix nside parameter, should only be provided for healpix coordinates.
     healpix_pixel_array : ndarray of int
@@ -198,6 +201,13 @@ def new_uvbeam(
         uvb.Naxes_vec = 2
         uvb.Ncomponents_vec = 2
     elif axis1_array is not None and axis2_array is not None:
+        for ind, arr in enumerate([axis1_array, axis2_array]):
+            # both axes arrays have the same same tols since we just made this
+            # object and haven't modified the tols
+            if not utils.tools._test_array_constant_spacing(
+                arr, tols=uvb._axis1_array.tols
+            ):
+                raise ValueError(f"axis{ind+1}_array must be regularly spaced")
         uvb.axis1_array = axis1_array
         uvb.axis2_array = axis2_array
 
@@ -241,6 +251,12 @@ def new_uvbeam(
 
     if x_orientation is not None:
         uvb.x_orientation = utils.XORIENTMAP[x_orientation.lower()]
+
+    for k, v in kwargs.items():
+        if hasattr(uvb, k):
+            setattr(uvb, k, v)
+        else:
+            raise ValueError(f"Unrecognized keyword argument: {k}")
 
     if basis_vector_array is not None:
         if uvb.pixel_coordinate_system == "healpix":
@@ -346,6 +362,9 @@ def new_uvbeam(
         polax = uvb.Nfeeds
     else:
         data_type = float
+        for pol in uvb.polarization_array:
+            if pol in [-3, -4, -7, -8]:
+                data_type = complex
         polax = uvb.Npols
 
     if uvb.pixel_coordinate_system == "healpix":

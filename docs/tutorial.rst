@@ -16,3 +16,5 @@ Tutorials are available for each major user class:
     uvdata_tutorial.rst
     uvcal_tutorial.rst
     uvbeam_tutorial.rst
+    analytic_beam_tutorial.rst
+    beam_interface_tutorial.rst

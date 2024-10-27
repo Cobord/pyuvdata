@@ -4,13 +4,13 @@
 """Primary container for radio telescope antenna beams."""
 
 import copy
+import importlib
 import os
 import warnings
 
 import numpy as np
 import yaml
 from astropy import units
-from astropy.coordinates import Angle
 from docstring_parser import DocstringStyle
 from scipy import interpolate, ndimage
 
@@ -20,6 +20,29 @@ from ..uvbase import UVBase
 from . import _uvbeam, initializers
 
 __all__ = ["UVBeam"]
+
+
+def _convert_feeds_to_pols(feed_array, calc_cross_pols, x_orientation=None):
+    n_feeds = np.asarray(feed_array).size
+
+    feed_pol_order = [(0, 0)]
+    if n_feeds > 1:
+        feed_pol_order.append((1, 1))
+
+    if calc_cross_pols:
+        # to get here we have Nfeeds > 1
+        feed_pol_order.extend([(0, 1), (1, 0)])
+
+    pol_strings = []
+    for pair in feed_pol_order:
+        pol_strings.append(feed_array[pair[0]] + feed_array[pair[1]])
+    polarization_array = np.array(
+        [
+            utils.polstr2num(ps.upper(), x_orientation=x_orientation)
+            for ps in pol_strings
+        ]
+    )
+    return polarization_array, feed_pol_order
 
 
 class UVBeam(UVBase):
@@ -237,7 +260,7 @@ class UVBeam(UVBase):
 
         self._Nfeeds = uvp.UVParameter(
             "Nfeeds",
-            description="Number of feeds. " 'Not required if beam_type is "power".',
+            description="Number of feeds. Not required if beam_type is 'power'.",
             expected_type=int,
             acceptable_vals=[1, 2],
             required=False,
@@ -922,32 +945,15 @@ class UVBeam(UVBase):
             # There are no cross pols with one feed. Set this so the power beam is real
             calc_cross_pols = False
 
+        beam_object.polarization_array, feed_pol_order = _convert_feeds_to_pols(
+            beam_object.feed_array,
+            calc_cross_pols,
+            x_orientation=beam_object.x_orientation,
+        )
+        beam_object.Npols = beam_object.polarization_array.size
+
         efield_data = beam_object.data_array
         efield_naxes_vec = beam_object.Naxes_vec
-
-        feed_pol_order = [(0, 0)]
-        if beam_object.Nfeeds > 1:
-            feed_pol_order.append((1, 1))
-
-        if calc_cross_pols:
-            beam_object.Npols = beam_object.Nfeeds**2
-            # to get here we have Nfeeds > 1
-            feed_pol_order.extend([(0, 1), (1, 0)])
-        else:
-            beam_object.Npols = beam_object.Nfeeds
-
-        pol_strings = []
-        for pair in feed_pol_order:
-            pol_strings.append(
-                beam_object.feed_array[pair[0]] + beam_object.feed_array[pair[1]]
-            )
-        beam_object.polarization_array = np.array(
-            [
-                utils.polstr2num(ps.upper(), x_orientation=self.x_orientation)
-                for ps in pol_strings
-            ]
-        )
-
         if not keep_basis_vector:
             beam_object.Naxes_vec = 1
 
@@ -1386,9 +1392,14 @@ class UVBeam(UVBase):
                 az_sq_dist = np.where(az_sq_dist > temp_arr, temp_arr, az_sq_dist)
 
         if np.any(np.sqrt(az_sq_dist + za_sq_dist) > (max_axis_diff * 2.0)):
+            if np.any(np.sqrt(za_sq_dist) > (max_axis_diff * 2.0)):
+                msg = " The zenith angles values are outside UVBeam coverage."
+            elif np.any(np.sqrt(az_sq_dist) > (max_axis_diff * 2.0)):
+                msg = " The azimuth values are outside UVBeam coverage."
+
             raise ValueError(
                 "at least one interpolation location "
-                "is outside of the UVBeam pixel coverage."
+                "is outside of the UVBeam pixel coverage." + msg
             )
 
     def _prepare_coordinate_data(self, input_data_array):
@@ -1915,8 +1926,12 @@ class UVBeam(UVBase):
         interp_basis_vector = self._prepare_basis_vector_array(az_array.size)
 
         hp_obj = HEALPix(nside=self.nside, order=self.ordering)
-        lat_array = Angle(np.pi / 2, units.radian) - Angle(za_array, units.radian)
-        lon_array = Angle(az_array, units.radian)
+        lat_array, lon_array = utils.coordinates.zenithangle_azimuth_to_hpx_latlon(
+            za_array, az_array
+        )
+        lon_array = lon_array * units.rad
+        lat_array = lat_array * units.rad
+
         for index3 in range(input_nfreqs):
             for index0 in range(self.Naxes_vec):
                 for index2 in range(Npol_feeds):
@@ -2021,6 +2036,11 @@ class UVBeam(UVBase):
         polarizations : list of str
             polarizations to interpolate if beam_type is 'power'.
             Default is all polarizations in self.polarization_array.
+        return_bandpass : bool
+            Option to return the bandpass. Only applies if `new_object` is False.
+        return_coupling : bool
+            Option to return the interpolated coupling matrix, only applies if
+            `antenna_type` is "phased_array" and `new_object` is False.
         new_object : bool
             Option to return a new UVBeam object with the interpolated data,
             if possible. Note that this is only possible for Healpix pixels or
@@ -2046,7 +2066,8 @@ class UVBeam(UVBase):
             Whether to check the domain of az/za to ensure that they are covered by the
             intrinsic data array. Checking them can be quite computationally expensive.
             Conversely, if the passed az/za are outside of the domain, they will be
-            silently extrapolated and the behavior is not well-defined.
+            silently extrapolated and the behavior is not well-defined. Only
+            applies for `az_za_simple` interpolation.
 
         Returns
         -------
@@ -2107,6 +2128,9 @@ class UVBeam(UVBase):
         interp_func = self.interpolation_function_dict[interpolation_function]["func"]
 
         if freq_array is not None:
+            if freq_array.ndim != 1:
+                raise ValueError("freq_array must be one-dimensional")
+
             # get frequency distances
             freq_dists = np.abs(self.freq_array - freq_array.reshape(-1, 1))
             nearest_dist = np.min(freq_dists, axis=1)
@@ -2151,9 +2175,11 @@ class UVBeam(UVBase):
                 healpix_inds = np.arange(hp_obj.npix)
 
             hpx_lon, hpx_lat = hp_obj.healpix_to_lonlat(healpix_inds)
-
-            za_array_use = (Angle(np.pi / 2, units.radian) - hpx_lat).radian
-            az_array_use = hpx_lon.radian
+            za_array_use, az_array_use = (
+                utils.coordinates.hpx_latlon_to_zenithangle_azimuth(
+                    hpx_lat.radian, hpx_lon.radian
+                )
+            )
 
         extra_keyword_dict = {}
         if interp_func in [
@@ -2382,15 +2408,15 @@ class UVBeam(UVBase):
 
         pixels = np.arange(hp_obj.npix)
         hpx_lon, hpx_lat = hp_obj.healpix_to_lonlat(pixels)
-
-        hpx_theta = (Angle(np.pi / 2, units.radian) - hpx_lat).radian
-        hpx_phi = hpx_lon.radian
+        hpx_zen_ang, hpx_az = utils.coordinates.hpx_latlon_to_zenithangle_azimuth(
+            hpx_lat.radian, hpx_lon.radian
+        )
 
         inds_to_use = _uvbeam.find_healpix_indices(
             np.ascontiguousarray(self.axis2_array, dtype=np.float64),
             np.ascontiguousarray(self.axis1_array, dtype=np.float64),
-            np.ascontiguousarray(hpx_theta, dtype=np.float64),
-            np.ascontiguousarray(hpx_phi, dtype=np.float64),
+            np.ascontiguousarray(hpx_zen_ang, dtype=np.float64),
+            np.ascontiguousarray(hpx_az, dtype=np.float64),
             np.float64(hp_obj.pixel_resolution.to_value(units.radian)),
         )
 
@@ -4451,3 +4477,108 @@ class UVBeam(UVBase):
         beamfits_obj = self._convert_to_filetype("beamfits")
         beamfits_obj.write_beamfits(filename, **kwargs)
         del beamfits_obj
+
+
+def _uvbeam_constructor(loader, node):
+    """
+    Define a yaml constructor for UVBeam objects.
+
+    The yaml must specify a "filename" field pointing to the UVBeam readable file
+    and any desired arguments to the UVBeam.from_file method.
+
+    Parameters
+    ----------
+    loader: yaml.Loader
+        An instance of a yaml Loader object.
+    node: yaml.Node
+        A yaml node object.
+
+    Returns
+    -------
+    UVBeam
+        An instance of a UVBeam.
+
+    """
+    values = loader.construct_mapping(node)
+    if "filename" not in values:
+        raise ValueError("yaml entries for UVBeam must specify a filename.")
+
+    files_use = values["filename"]
+    if isinstance(values["filename"], str):
+        files_use = [values["filename"]]
+
+    if "path_variable" in values:
+        path_parts = (values.pop("path_variable")).split(".")
+        var_name = path_parts[-1]
+        if len(path_parts) == 1:
+            raise ValueError(
+                "If 'path_variable' is specified, it should take the form of a "
+                "module.variable_name where the variable name can be imported "
+                "from the module."
+            )
+        else:
+            module = (".").join(path_parts[:-1])
+            module = importlib.import_module(module)
+        path_var = getattr(module, var_name)
+        for f_i in range(len(files_use)):
+            files_use[f_i] = os.path.join(path_var, files_use[f_i])
+
+    if len(files_use) == 1:
+        files_use = files_use[0]
+    values["filename"] = files_use
+
+    beam = UVBeam.from_file(**values)
+
+    return beam
+
+
+yaml.add_constructor("!UVBeam", _uvbeam_constructor, Loader=yaml.SafeLoader)
+yaml.add_constructor("!UVBeam", _uvbeam_constructor, Loader=yaml.FullLoader)
+
+
+def _uvbeam_representer(dumper, beam):
+    """
+    Define a yaml representer for UVbeams.
+
+    Note: since all the possible selects cannot be extracted from the object,
+    the object generated from this yaml may not be an exact match for the object
+    in memory. Also note that the filename parameter must not be None and must
+    point to an existing file. It's likely that the user will need to update
+    the filename parameter to include the full path.
+
+    Parameters
+    ----------
+    dumper: yaml.Dumper
+        An instance of a yaml Loader object.
+    beam: UVBeam
+        A UVbeam object, which must have a filename defined on it.
+
+    Returns
+    -------
+    str
+        The yaml representation of the UVbeam.
+
+    """
+    if beam.filename is None:
+        raise ValueError(
+            "beam must have a filename defined to be able to represent it in a yaml."
+        )
+    files_use = beam.filename
+    if isinstance(files_use, str):
+        files_use = [files_use]
+    for file in files_use:
+        if not os.path.exists(file):
+            raise ValueError(
+                "all entries in the filename parameter must be existing files "
+                f"to be able to represent it in a yaml. {file} does not exist"
+            )
+    if len(files_use) == 1:
+        files_use = files_use[0]
+
+    mapping = {"filename": files_use}
+
+    return dumper.represent_mapping("!UVBeam", mapping)
+
+
+yaml.add_representer(UVBeam, _uvbeam_representer, Dumper=yaml.SafeDumper)
+yaml.add_representer(UVBeam, _uvbeam_representer, Dumper=yaml.Dumper)
