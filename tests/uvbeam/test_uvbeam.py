@@ -11,8 +11,8 @@ from collections import namedtuple
 
 import numpy as np
 import pytest
+import yaml
 from astropy import units
-from astropy.coordinates import Angle
 from astropy.io import fits
 
 from pyuvdata import UVBeam, utils
@@ -426,7 +426,9 @@ def test_efield_to_pstokes(cst_efield_2freq_cut, cst_efield_2freq_cut_healpix):
     # NOTE:  So far, the following doesn't hold unless the beams are
     # peak_normalized again.
     # This seems to be the fault of interpolation
-    assert np.allclose(pstokes_beam.data_array, beam_return.data_array, atol=1e-2)
+    np.testing.assert_allclose(
+        pstokes_beam.data_array, beam_return.data_array, atol=1e-2
+    )
 
 
 def test_efield_to_pstokes_error(cst_power_2freq_cut):
@@ -599,7 +601,9 @@ def test_efield_to_power_crosspol(cst_efield_2freq_cut, tmp_path):
     new_power_beam = efield_beam.efield_to_power(
         calc_cross_pols=False, keep_basis_vector=True, inplace=False
     )
-    assert np.allclose(new_power_beam.data_array, np.abs(efield_beam.data_array) ** 2)
+    np.testing.assert_allclose(
+        new_power_beam.data_array, np.abs(efield_beam.data_array) ** 2
+    )
 
 
 def test_efield_to_power_errors(cst_efield_2freq_cut, cst_power_2freq_cut):
@@ -872,12 +876,12 @@ def test_spatial_interpolation_samepoints(
     )
 
     interp_data_array = interp_data_array.reshape(uvbeam.data_array.shape, order="F")
-    assert np.allclose(uvbeam.data_array, interp_data_array)
+    np.testing.assert_allclose(uvbeam.data_array, interp_data_array)
     if beam_type == "efield":
         interp_basis_vector = interp_basis_vector.reshape(
             uvbeam.basis_vector_array.shape, order="F"
         )
-        assert np.allclose(uvbeam.basis_vector_array, interp_basis_vector)
+        np.testing.assert_allclose(uvbeam.basis_vector_array, interp_basis_vector)
 
     # test error with using an incompatible interpolation function
     with pytest.raises(
@@ -967,7 +971,7 @@ def test_spatial_interpolation_samepoints(
         interp_data_array = interp_data_array.reshape(
             data_array_compare.shape, order="F"
         )
-        assert np.allclose(data_array_compare, interp_data_array)
+        np.testing.assert_allclose(data_array_compare, interp_data_array)
 
 
 @pytest.mark.parametrize("beam_type", ["efield", "power"])
@@ -1065,7 +1069,7 @@ def test_spatial_interpolation_everyother(
     )
 
     # slightly different interpolation, so not identical.
-    assert np.allclose(quartic_data_array, orig_data_array, atol=1e-10)
+    np.testing.assert_allclose(quartic_data_array, orig_data_array, atol=1e-10)
     assert not np.all(quartic_data_array == orig_data_array)
 
     select_data_array_orig, _ = uvbeam.interp(
@@ -1082,7 +1086,7 @@ def test_spatial_interpolation_everyother(
         freq_interp_kind="linear",
         reuse_spline=True,
     )
-    assert np.allclose(select_data_array_orig, select_data_array_reused)
+    np.testing.assert_allclose(select_data_array_orig, select_data_array_reused)
     del uvbeam.saved_interp_functions
 
     # test comparison of different interpolation functions
@@ -1178,15 +1182,26 @@ def test_spatial_interpolation_errors(interpolation_function, cst_power_2freq_cu
             freq_array=freq_interp_vals,
             interpolation_function=interpolation_function,
         )
-    # test errors if positions outside range
+    # test errors if positions outside range (zenith angle)
     with pytest.raises(
         ValueError,
-        match="at least one interpolation location "
-        "is outside of the UVBeam pixel coverage.",
+        match="at least one interpolation location is outside of the UVBeam "
+        "pixel coverage. The zenith angles values are outside UVBeam coverage.",
     ):
         uvbeam.interp(
             az_array=az_interp_vals,
             za_array=za_interp_vals + np.pi / 2,
+            interpolation_function=interpolation_function,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="at least one interpolation location is outside of the UVBeam "
+        "pixel coverage. The azimuth values are outside UVBeam coverage.",
+    ):
+        uvbeam.interp(
+            az_array=az_interp_vals + np.pi / 2,
+            za_array=za_interp_vals,
             interpolation_function=interpolation_function,
         )
 
@@ -1245,14 +1260,14 @@ def test_interp_longitude_branch_cut(beam_type, cst_efield_2freq, cst_power_2fre
         beam.Naxes_vec, npol_feed, beam.Nfreqs, 4, beam.Naxes2
     )
 
-    assert np.allclose(
+    np.testing.assert_allclose(
         interp_data_array[:, :, :, 0, :],
         interp_data_array[:, :, :, 1, :],
         rtol=beam._data_array.tols[0],
         atol=beam._data_array.tols[1],
     )
 
-    assert np.allclose(
+    np.testing.assert_allclose(
         interp_data_array[:, :, :, 2, :],
         interp_data_array[:, :, :, 3, :],
         rtol=beam._data_array.tols[0],
@@ -1317,8 +1332,9 @@ def test_healpix_interpolation(antenna_type, cst_efield_2freq, phased_array_beam
     # check that interpolating to existing points gives the same answer
     hp_obj = HEALPix(nside=hpx_efield_beam.nside)
     hpx_lon, hpx_lat = hp_obj.healpix_to_lonlat(hpx_efield_beam.pixel_array)
-    za_orig_vals = (Angle(np.pi / 2, units.radian) - hpx_lat).radian
-    az_orig_vals = hpx_lon.radian
+    za_orig_vals, az_orig_vals = utils.coordinates.hpx_latlon_to_zenithangle_azimuth(
+        hpx_lat.rad, hpx_lon.rad
+    )
 
     az_orig_vals = az_orig_vals.ravel(order="C")
     za_orig_vals = za_orig_vals.ravel(order="C")
@@ -1329,7 +1345,8 @@ def test_healpix_interpolation(antenna_type, cst_efield_2freq, phased_array_beam
     )
     data_array_compare = hpx_efield_beam.data_array
     interp_data_array = interp_data_array.reshape(data_array_compare.shape, order="F")
-    assert np.allclose(data_array_compare, interp_data_array)
+
+    np.testing.assert_allclose(data_array_compare, interp_data_array)
 
     # test error with using an incompatible interpolation function
     with pytest.raises(
@@ -1418,7 +1435,7 @@ def test_healpix_interpolation(antenna_type, cst_efield_2freq, phased_array_beam
 
     # test no inputs equals same answer
     interp_data_array2, _ = hpx_efield_beam.interp()
-    assert np.allclose(interp_data_array, interp_data_array2)
+    np.testing.assert_allclose(interp_data_array, interp_data_array2)
 
     # test errors with specifying healpix_inds without healpix_nside
     hp_obj = HEALPix(nside=hpx_efield_beam.nside)
@@ -1467,7 +1484,7 @@ def test_healpix_interpolation(antenna_type, cst_efield_2freq, phased_array_beam
     )
     data_array_compare = power_beam.data_array
     interp_data_array = interp_data_array.reshape(data_array_compare.shape, order="F")
-    assert np.allclose(data_array_compare, interp_data_array)
+    np.testing.assert_allclose(data_array_compare, interp_data_array)
 
     # test that interp to every other point returns an object that matches a select
     pixel_inds = np.arange(0, power_beam.Npixels, 2)
@@ -1485,20 +1502,20 @@ def test_healpix_interpolation(antenna_type, cst_efield_2freq, phased_array_beam
     interp_data_array2, _ = power_beam.interp(
         az_array=az_orig_vals, za_array=za_orig_vals
     )
-    assert np.allclose(interp_data_array, interp_data_array2)
+    np.testing.assert_allclose(interp_data_array, interp_data_array2)
 
     # assert not feeding az_array gives same answer
     interp_data_array2, _ = power_beam.interp(
         az_array=az_orig_vals, za_array=za_orig_vals
     )
-    assert np.allclose(interp_data_array, interp_data_array2)
+    np.testing.assert_allclose(interp_data_array, interp_data_array2)
 
     # test requesting polarization gives the same answer
     interp_data_array2, _ = power_beam.interp(
         az_array=az_orig_vals, za_array=za_orig_vals, polarizations=["yy"]
     )
 
-    assert np.allclose(
+    np.testing.assert_allclose(
         interp_data_array[..., 1:2, :, :], interp_data_array2[..., :1, :, :]
     )
 
@@ -1510,7 +1527,7 @@ def test_healpix_interpolation(antenna_type, cst_efield_2freq, phased_array_beam
     )
     data_array_compare = power_beam.data_array
     interp_data_array = interp_data_array.reshape(data_array_compare.shape, order="F")
-    assert np.allclose(data_array_compare, interp_data_array)
+    np.testing.assert_allclose(data_array_compare, interp_data_array)
 
     # assert polarization value error
     with pytest.raises(
@@ -1548,8 +1565,9 @@ def test_find_healpix_indices(start, stop, phi_start, phi_end):
     pixels = np.arange(hp_obj.npix)
     hpx_lon, hpx_lat = hp_obj.healpix_to_lonlat(pixels)
 
-    hpx_theta = (Angle(np.pi / 2, units.radian) - hpx_lat).radian
-    hpx_phi = hpx_lon.radian
+    hpx_za, hpx_az = utils.coordinates.hpx_latlon_to_zenithangle_azimuth(
+        hpx_lat.rad, hpx_lon.rad
+    )
 
     theta_vals1 = np.linspace(0, np.pi, 5, endpoint=True)
     theta_vals2 = np.linspace(start, stop, 5, endpoint=True)
@@ -1559,16 +1577,16 @@ def test_find_healpix_indices(start, stop, phi_start, phi_end):
     inds_to_use1 = _uvbeam.find_healpix_indices(
         np.ascontiguousarray(theta_vals1, dtype=np.float64),
         np.ascontiguousarray(phi_vals, dtype=np.float64),
-        np.ascontiguousarray(hpx_theta, dtype=np.float64),
-        np.ascontiguousarray(hpx_phi, dtype=np.float64),
+        np.ascontiguousarray(hpx_za, dtype=np.float64),
+        np.ascontiguousarray(hpx_az, dtype=np.float64),
         np.float64(hp_obj.pixel_resolution.to_value(units.radian)),
     )
 
     inds_to_use2 = _uvbeam.find_healpix_indices(
         np.ascontiguousarray(theta_vals2, dtype=np.float64),
         np.ascontiguousarray(phi_vals, dtype=np.float64),
-        np.ascontiguousarray(hpx_theta, dtype=np.float64),
-        np.ascontiguousarray(hpx_phi, dtype=np.float64),
+        np.ascontiguousarray(hpx_za, dtype=np.float64),
+        np.ascontiguousarray(hpx_az, dtype=np.float64),
         np.float64(hp_obj.pixel_resolution.to_value(units.radian)),
     )
 
@@ -2673,23 +2691,23 @@ def test_beam_area_healpix(cst_power_1freq_cut_healpix, cst_efield_1freq_cut_hea
     d_omega = hp_obj.pixel_area.to_value("steradian")
     npix = healpix_norm.Npixels
     healpix_norm.data_array = np.ones_like(healpix_norm.data_array)
-    assert np.allclose(
+    np.testing.assert_allclose(
         np.sum(healpix_norm.get_beam_area(pol="xx")), numfreqs * npix * d_omega
     )
     healpix_norm.data_array = 2.0 * np.ones_like(healpix_norm.data_array)
-    assert np.allclose(
+    np.testing.assert_allclose(
         np.sum(healpix_norm.get_beam_sq_area(pol="xx")), numfreqs * 4.0 * npix * d_omega
     )
 
     # check XX and YY beam areas work and match to within 5 sigfigs
     xx_area = healpix_norm.get_beam_area("XX")
     xx_area = healpix_norm.get_beam_area("xx")
-    assert np.allclose(xx_area, xx_area)
+    np.testing.assert_allclose(xx_area, xx_area)
     yy_area = healpix_norm.get_beam_area("YY")
-    assert np.allclose(yy_area / xx_area, np.ones(numfreqs))
+    np.testing.assert_allclose(yy_area / xx_area, np.ones(numfreqs))
     xx_area = healpix_norm.get_beam_sq_area("XX")
     yy_area = healpix_norm.get_beam_sq_area("YY")
-    assert np.allclose(yy_area / xx_area, np.ones(numfreqs))
+    np.testing.assert_allclose(yy_area / xx_area, np.ones(numfreqs))
 
     # Check that if pseudo-Stokes I (pI) is in the beam polarization_array it
     # just uses it
@@ -2725,7 +2743,7 @@ def test_beam_area_healpix(cst_power_1freq_cut_healpix, cst_efield_1freq_cut_hea
     XY_area = healpix_norm_fullpol.get_beam_sq_area("XY")
     YX_area = healpix_norm_fullpol.get_beam_sq_area("YX")
     # check if XY beam area is equal to beam YX beam area
-    assert np.allclose(XY_area, YX_area)
+    np.testing.assert_allclose(XY_area, YX_area, rtol=0, atol=1e-9)
     # check if XY/YX beam area is less than XX/YY beam area
     assert np.all(np.less(XY_area, xx_area))
     assert np.all(np.less(XY_area, yy_area))
@@ -2765,8 +2783,8 @@ def test_beam_area_healpix(cst_power_1freq_cut_healpix, cst_efield_1freq_cut_hea
     I_area = efield_beam.get_beam_area("I")
     pI_area = efield_beam.get_beam_area("pI")
     area1 = efield_beam.get_beam_area(1)
-    assert np.allclose(I_area, pI_area)
-    assert np.allclose(I_area, area1)
+    np.testing.assert_allclose(I_area, pI_area)
+    np.testing.assert_allclose(I_area, area1)
 
     # check efield beam type is accepted for pseudo-stokes and power for
     # linear polarizations
@@ -2961,3 +2979,108 @@ def test_from_file(filename):
     assert uvb.check()
     assert uvb2.check()
     assert uvb == uvb2
+
+
+@pytest.mark.parametrize(
+    ["filename", "path_var", "file_list"],
+    [
+        [cst_yaml_file, True, True],
+        [mwa_beam_file, False, False],
+        [casa_beamfits, False, True],
+    ],
+)
+def test_yaml_constructor(filename, path_var, file_list):
+    if path_var:
+        input_yaml = f"""
+            beam: !UVBeam
+                filename: {filename}
+                run_check: False
+            """
+    else:
+        fname_use = filename[len(DATA_PATH) + 1 :]
+        input_yaml = f"""
+            beam: !UVBeam
+                filename: {fname_use}
+                path_variable: pyuvdata.data.DATA_PATH
+                run_check: False
+            """
+
+    beam_from_yaml = yaml.safe_load(input_yaml)["beam"]
+
+    # don't run checks because of casa_beamfits, we'll do that later
+    uvb = UVBeam.from_file(filename, run_check=False)
+    # hera casa beam is missing some parameters but we just want to check
+    # that reading is going okay
+    if filename == casa_beamfits:
+        # fill in missing parameters
+        for _uvb in [uvb, beam_from_yaml]:
+            _uvb.data_normalization = "peak"
+            _uvb.feed_name = "casa_ideal"
+            _uvb.feed_version = "v0"
+            _uvb.model_name = "casa_airy"
+            _uvb.model_version = "v0"
+
+            # this file is actually in an orthoslant projection RA/DEC at zenith at a
+            # particular time.
+            # For now pretend it's in a zenith orthoslant projection
+            _uvb.pixel_coordinate_system = "orthoslant_zenith"
+    # double check the files are valid
+    assert uvb.check()
+    assert beam_from_yaml.check()
+    assert uvb == beam_from_yaml
+
+    err_msg = (
+        "all entries in the filename parameter must be existing files to be "
+        "able to represent it in a yaml."
+    )
+    with pytest.raises(ValueError, match=err_msg):
+        output_yaml = yaml.safe_dump({"beam": uvb})
+
+    if file_list:
+        uvb.filename = [filename]
+    else:
+        uvb.filename = filename
+    output_yaml = yaml.safe_dump({"beam": uvb})
+    try:
+        new_beam_from_yaml = yaml.safe_load(output_yaml)["beam"]
+
+        assert new_beam_from_yaml == beam_from_yaml
+    except ValueError:
+        # get here for the ill-defined casa beam. just test the null filename case
+
+        uvb.filename = None
+        with pytest.raises(
+            ValueError,
+            match="beam must have a filename defined to be able to represent it "
+            "in a yaml.",
+        ):
+            output_yaml = yaml.safe_dump({"beam": uvb})
+
+
+def test_yaml_constructor_errors():
+    fname_use = cst_yaml_file[len(DATA_PATH) + 1 :]
+    input_yaml = f"""
+        beam: !UVBeam
+            filename: {fname_use}
+            path_variable: DATA_PATH
+            run_check: False
+        """
+
+    with pytest.raises(
+        ValueError,
+        match="If 'path_variable' is specified, it should take the form of a "
+        "module.variable_name where the variable name can be imported "
+        "from the module.",
+    ):
+        yaml.safe_load(input_yaml)["beam"]
+
+    input_yaml = """
+        beam: !UVBeam
+            path_variable: DATA_PATH
+            run_check: False
+        """
+
+    with pytest.raises(
+        ValueError, match="yaml entries for UVBeam must specify a filename."
+    ):
+        yaml.safe_load(input_yaml)["beam"]

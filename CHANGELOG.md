@@ -3,9 +3,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.1.0] - 2024-10-22
+
 ### Added
-- New optional spatial interpolation method, ``interpolation_function="az_za_map_coordinates"`` that improves the linear
-interpolation speed for data in ``az_za`` coordinates.
+- New analytic beam classes: AiryBeam, GaussianBeam, ShortDipoleBeam, UniformBeam
+that support evaluating either the efield or power beam in any direction and frequency.
+- A new BeamInterface class that provides a unified interface to UVBeam and analytic
+beam objects to get beam responses in any direction and frequency (via
+interpolation or evaluation as appropriate).
+- New optional spatial interpolation method, ``interpolation_function="az_za_map_coordinates"``
+that improves the linear interpolation speed for data in ``az_za`` coordinates.
 - New UVParameter `pol_convention` on `UVData` and `UVCal`. This specifies the convention
 assumed for converting linear to stokes polarizations -- either "sum" or "avg". Also
 added to `uvcalibrate` to apply from the `UVCal` to the `UVData`.
@@ -16,7 +23,12 @@ telescope object from the metadata.
 - `UVData.get_enu_data_ants` method to get east, north, up positions only for
 antennas with data.
 
+### Changed
+- Updated minimum optional dependency versions: lunarsky>=0.2.5, pytest>=8.2.0
+
 ### Fixed
+- A bug in the MWA beam reader that resulted in the wrong polarization response
+(the azimuthal-aligned response was swapped with the zenith angle-aligned response).
 - A bug in reading UVH5 files with antenna names saved as variable length strings
 that was introduced in v3.0.0.
 
