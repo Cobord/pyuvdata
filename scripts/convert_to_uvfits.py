@@ -3,12 +3,12 @@
 # Licensed under the 2-clause BSD License
 
 """Convert any pyuvdata compatible file to UVFITS format."""
-
+#pylint:disable=import-error
 import argparse
 import os
 import sys
 
-from astropy.time import Time
+from astropy.time import Time # type: ignore
 
 import pyuvdata
 
@@ -72,6 +72,7 @@ for filename in args.files:
     UV = pyuvdata.UVData()
     UV.read(filename)
 
+    #pylint:disable=protected-access
     if any(UV._check_for_cat_type("unprojected")):
         # phase data
         if args.phase_time is not None:

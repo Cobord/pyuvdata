@@ -6,6 +6,7 @@
 import argparse
 import os.path as op
 
+#pylint:disable=import-error
 from pyuvdata import UVData
 
 parser = argparse.ArgumentParser()

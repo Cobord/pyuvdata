@@ -2,7 +2,7 @@
 # Copyright (c) 2018 Radio Astronomy Software Group
 # Licensed under the 2-clause BSD License
 """Read in a uvfits file and write a new one out."""
-
+#pylint:disable=import-error
 import argparse
 import os.path as op
 

@@ -2,11 +2,11 @@
 # Copyright (c) 2018 Radio Astronomy Software Group
 # Licensed under the 2-clause BSD License
 """Test memory usage of read_uvfits."""
-
+#pylint:disable=import-error
 import numpy as np
-from astropy import constants as const
-from astropy.io import fits
-from memory_profiler import profile
+from astropy import constants as const # type: ignore
+from astropy.io import fits # type: ignore
+from memory_profiler import profile # type: ignore
 
 from pyuvdata import UVData
 
@@ -89,8 +89,6 @@ def read_uvfits():
     del vis_hdu
     del hdu_list
     del filename
-
-    return
 
 
 if __name__ == "__main__":

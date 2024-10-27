@@ -1,5 +1,7 @@
-# Copyright (c) 2018 Radio Astronomy Software Group
-# Licensed under the 2-clause BSD License
+"""
+Copyright (c) 2018 Radio Astronomy Software Group
+Licensed under the 2-clause BSD License
+"""
 
 import os
 import platform
@@ -21,26 +23,27 @@ def branch_scheme(version):
     """
     if version.exact or version.node is None:
         return version.format_choice("", "+d{time:{time_format}}", time_format="%Y%m%d")
-    else:
-        if version.branch == "main":
-            return version.format_choice("+{node}", "+{node}.dirty")
-        else:
-            return version.format_choice("+{node}.{branch}", "+{node}.{branch}.dirty")
+    if version.branch == "main":
+        return version.format_choice("+{node}", "+{node}.dirty")
+    return version.format_choice("+{node}.{branch}", "+{node}.{branch}.dirty")
 
 
+#pylint:disable=missing-function-docstring
 def is_platform_mac():
     return sys.platform == "darwin"
 
-
+#pylint:disable=missing-function-docstring
 def is_platform_windows():
     return sys.platform == "win32"
 
-
-# For mac, ensure extensions are built for macos 10.9 when compiling on a
-# 10.9 system or above, overriding distuitls behaviour which is to target
-# the version that python was built for. This may be overridden by setting
-# MACOSX_DEPLOYMENT_TARGET before calling setup.py
-# implementation based on pandas, see https://github.com/pandas-dev/pandas/issues/23424
+#pylint:disable=pointless-string-statement
+"""
+For mac, ensure extensions are built for macos 10.9 when compiling on a
+10.9 system or above, overriding distuitls behaviour which is to target
+the version that python was built for. This may be overridden by setting
+MACOSX_DEPLOYMENT_TARGET before calling setup.py
+implementation based on pandas, see https://github.com/pandas-dev/pandas/issues/23424
+"""
 if is_platform_mac() and "MACOSX_DEPLOYMENT_TARGET" not in os.environ:
     current_system = parse(platform.mac_ver()[0])
     python_target = parse(get_config_var("MACOSX_DEPLOYMENT_TARGET"))

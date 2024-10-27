@@ -2,6 +2,7 @@
 # Copyright (c) 2018 Radio Astronomy Software Group
 # Licensed under the 2-clause BSD License
 """Convert multiple FHD datasets to UVFITS format."""
+#pylint:disable=import-error
 
 import argparse
 import os

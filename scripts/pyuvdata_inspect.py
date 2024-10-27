@@ -2,7 +2,7 @@
 # Copyright (c) 2018 Radio Astronomy Software Group
 # Licensed under the 2-clause BSD License
 """Inspect attributes of pyuvdata objects."""
-
+#pylint:disable=import-error
 import argparse
 import os
 
@@ -120,10 +120,10 @@ for i, f in enumerate(args.files):
             for k in range(Nnest - 1):
                 this_attr = getattr(this_attr, attr[k + 1])
             # print to stdout
-            print("{} of {} is: {}".format(".".join(attr), f, this_attr))
+            print(f"{".".join(attr)} of {f} is: {this_attr}")
             exit_clean = True
         except AttributeError:
-            print("Couldn't access '{}' from {}".format(".".join(attr), f))
+            print(f"Couldn't access '{".".join(attr)}' from {f}")
             exit_clean = False
 
 if args.interactive:
